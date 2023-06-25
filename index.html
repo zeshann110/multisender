@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BEP20 Multisender</title>
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+  <div class="container mt-5">
+    <h1 class="text-center mb-4">BEP20 Multisender</h1>
+    <form id="multisend-form">
+      <div class="form-group">
+        <label for="address-file">Upload Address List:</label>
+        <input type="file" class="form-control-file" id="address-file" required accept=".txt">
+      </div>
+      <div class="form-group">
+        <label for="amount">Token Amount:</label>
+        <input type="number" class="form-control" id="amount" required min="0">
+      </div>
+      <button type="submit" class="btn btn-primary">Send Tokens</button>
+    </form>
+    <div id="result" class="mt-4"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
+  <script src="https://cdn.ethers.io/lib/ethers-5.0.umd.min.js" integrity="sha384-FHbAxql2jj8SrqXkHsVJMiJrB/Cwz7Zk5AJBneRrsLxJHlAs/yH8Y6apFv9q2VMo" crossorigin="anonymous"></script>
+  <script>
+    const tokenAddress = '0x68808912a688a20f1de3D07D1e4fDAb9418eC6F9';
+    const tokenAbi = [{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"owner","type":"address"},{"indexed":true,"internalType":"address","name":"spender","type":"address"},{"indexed":false,"internalType":"uint256","name":"value","type":"uint256"}],"name":"Approval","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":true,"internalType":"address","name":"to","type":"address"},{"indexed":false,"internalType":"uint256","name":"value","type":"uint256"}],"name":"Transfer","type":"event"},{"inputs":[{"internalType":"address","name":"owner","type":"address"},{"internalType":"address","name":"spender","type":"address"}],"name":"allowance","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"approve","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"account","type":"address"}],"name":"balanceOf","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"decimals","outputs":[{"internalType":"uint8","name":"","type":"uint8"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"subtractedValue","type":"uint256"}],"name":"decreaseAllowance","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"addedValue","type":"uint256"}],"name":"increaseAllowance","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"name","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"renounceOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"symbol","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"totalSupply","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"transfer","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"from","type":"address"},{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"transferFrom","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"}];
+
+    // Function to check if MetaMask is installed and unlocked
+    async function checkMetaMask() {
+      if (typeof window.ethereum !== 'undefined' && window.ethereum.isMetaMask) {
+        // MetaMask is installed and unlocked
+        return true;
+      } else {
+        // MetaMask is not available
+        return false;
+      }
+    }
+
+    // Function to get the user's selected Ethereum address
+    async function getSelectedAddress() {
+      const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+      return accounts[0];
+    }
+
+    // Function to send tokens to multiple addresses
+    async function sendTokens(addresses, amount) {
+      try {
+        const isMetaMaskInstalled = await checkMetaMask();
+
+        if (isMetaMaskInstalled) {
+          const selectedAddress = await getSelectedAddress();
+          const provider = new ethers.providers.Web3Provider(window.ethereum);
+          const signer = provider.getSigner();
+          const tokenContract = new ethers.Contract(tokenAddress, tokenAbi, signer);
+
+          // Filter out any invalid addresses
+          const validAddresses = addresses.filter(address => ethers.utils.isAddress(address));
+
+          if (validAddresses.length === 0) {
+            throw new Error('No valid addresses found.');
+          }
+
+          // Convert the amount to BigNumber
+          const tokenAmount = ethers.utils.parseUnits(amount.toString());
+
+          // Set the transaction overrides
+          const overrides = {
+            gasLimit: 4000000, // Adjust the gas limit as needed
+          };
+
+          // Prepare the batch transfer transaction
+          const batchTransferTx = tokenContract.batchTransfer(validAddresses, tokenAmount, overrides);
+
+          // Send the batch transfer transaction
+          const batchTransferReceipt = await batchTransferTx.wait();
+
+          // Display success message
+          const successMessage = `Tokens successfully sent to ${validAddresses.length} addresses.`;
+          displayResult(successMessage, 'success');
+        } else {
+          throw new Error('MetaMask is not installed or unlocked.');
+        }
+      } catch (error) {
+        // Display error message
+        displayResult(error.message, 'error');
+      }
+    }
+
+    // Function to display the result message
+    function displayResult(message, type) {
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = `<div class="alert alert-${type}" role="alert">${message}</div>`;
+    }
+
+    // Event listener for the form submission
+    document.getElementById('multisend-form').addEventListener('submit', function(event) {
+      event.preventDefault();
+
+      const addressFile = document.getElementById('address-file');
+      const amountInput = document.getElementById('amount');
+
+      const addresses = addressFile.files[0];
+      const amount = amountInput.value;
+
+      // Validate form inputs
+      if (!addresses || !amount) {
+        displayResult('Please select an address file and enter the token amount.', 'error');
+        return;
+      }
+
+      // Read the address file contents
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const contents = e.target.result;
+        const addressList = contents.split('\n');
+        sendTokens(addressList, amount);
+      };
+      reader.readAsText(addresses);
+    });
+  </script>
+</body>
+</html>
